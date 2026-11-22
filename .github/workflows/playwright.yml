@@ -1,0 +1,153 @@
+name: 🎭 Playwright Tests
+
+run-name: "🎭 ${{ inputs.test_suite || 'test:e2e' }} • ${{ inputs.environment || 'qa' }} • ${{ inputs.browser || 'chromium' }}"
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select environment"
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+          - prod
+        default: "qa"
+      test_suite:
+        description: "Select test suite"
+        type: choice
+        options:
+          - test:master
+          - test:sanity
+          - test:regression
+          - test:e2e
+          - test:api
+          - test:web
+          - test:datadriven
+        default: "test:e2e"
+      browser:
+        description: "Select browser"
+        type: choice
+        options:
+          - chromium
+          - firefox
+          - webkit
+        default: "chromium"
+      mode:
+        description: "Run mode"
+        type: choice
+        options:
+          - headless
+          - headed
+        default: "headless"
+
+# One run per env + branch at a time; a newer run cancels the older one
+concurrency:
+  group: playwright-${{ inputs.environment || 'qa' }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: macos-latest
+
+    # Binds the job to a GitHub Environment (Settings → Environments).
+    # Each environment holds its own secrets with the SAME names
+    # (APP_USERNAME, APP_PASSWORD, ...) but different values.
+    # Add "Required reviewers" on the prod environment for an approval gate.
+    environment: ${{ inputs.environment || 'qa' }}
+
+    # Resolve inputs once. push / pull_request have no inputs, so defaults apply.
+    env:
+      CI: "1"
+      TEST_ENV: ${{ inputs.environment || 'qa' }}
+      TEST_SUITE: ${{ inputs.test_suite || 'test:e2e' }}
+      BROWSER: ${{ inputs.browser || 'chromium' }}
+      RUN_MODE: ${{ inputs.mode || 'headless' }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🎭 Install Playwright Browser (selected only)
+        run: npx playwright install --with-deps "$BROWSER"
+
+      - name: 🔍 Validate Environment Config
+        run: |
+          ENV_FILE="env/.env.${TEST_ENV}"
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "::error::Missing $ENV_FILE — add it to the repo for environment '$TEST_ENV'."
+            exit 1
+          fi
+          echo "✅ Using $ENV_FILE"
+
+      - name: 🧪 Run Playwright Tests
+        env:
+          # Secrets come from the GitHub Environment selected above.
+          # They take priority over anything in env/.env.<env>.
+          APP_USERNAME: ${{ secrets.APP_USERNAME }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+        run: |
+          TAG="${TEST_SUITE#test:}"
+
+          # Build args as an array so an empty flag never becomes a stray "" argument
+          PW_ARGS=(playwright test --grep "@${TAG}" "--project=${BROWSER}" --output=test-results)
+          if [ "$RUN_MODE" = "headed" ]; then
+            PW_ARGS+=(--headed)
+          fi
+
+          echo "▶ Env: $TEST_ENV | Suite: @$TAG | Browser: $BROWSER | Mode: $RUN_MODE"
+          npx "${PW_ARGS[@]}"
+
+      - name: 📝 Job Summary
+        if: always()
+        run: |
+          {
+            echo "### 🎭 Playwright Run"
+            echo "| Environment | Suite | Browser | Mode |"
+            echo "|---|---|---|---|"
+            echo "| **${TEST_ENV}** | ${TEST_SUITE} | ${BROWSER} | ${RUN_MODE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 📊 Upload Playwright HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ env.TEST_ENV }}-${{ env.BROWSER }}
+          path: reports/
+          retention-days: 30
+
+      - name: 📋 Upload Custom Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: custom-report-${{ env.TEST_ENV }}-${{ env.BROWSER }}
+          path: custom-report/
+          retention-days: 30
+
+      - name: 📈 Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ env.TEST_ENV }}-${{ env.BROWSER }}
+          path: allure-results/
+          retention-days: 30
