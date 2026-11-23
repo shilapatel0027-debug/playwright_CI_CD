@@ -4,9 +4,9 @@ run-name: "🎭 ${{ inputs.test_suite || 'test:e2e' }} • ${{ inputs.environmen
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -67,7 +67,7 @@ concurrency:
 jobs:
   test:
     timeout-minutes: 60
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     # Binds the job to a GitHub Environment (Settings → Environments).
     # Each environment holds its own secrets with the SAME names

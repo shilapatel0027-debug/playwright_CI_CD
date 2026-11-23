@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test:api": "playwright test --grep @api",
+    "test:api": "playwright test --grep @apiE2E",
     "test:web": "playwright test --grep @web --project=chromium",
     "test:master": "playwright test --grep @master",
     "test:sanity": "playwright test --grep @sanity",
