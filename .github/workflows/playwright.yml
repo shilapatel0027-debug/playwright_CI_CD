@@ -45,6 +45,19 @@ on:
           - headless
           - headed
         default: "headless"
+      auth_mode:
+        description: "API auth mode"
+        type: choice
+        options:
+          - credentials
+          - token
+          - none
+        default: "credentials"
+      api_token:
+        description: "New API token (only for auth_mode=token). Leave empty to use the API_TOKEN secret"
+        type: string
+        required: false
+        default: ""
 
 # One run per env + branch at a time; a newer run cancels the older one
 concurrency:
@@ -69,12 +82,21 @@ jobs:
       TEST_SUITE: ${{ inputs.test_suite || 'test:e2e' }}
       BROWSER: ${{ inputs.browser || 'chromium' }}
       RUN_MODE: ${{ inputs.mode || 'headless' }}
+      # credentials = APP_USERNAME/APP_PASSWORD, token = API_TOKEN only, none = no auth
+      AUTH_MODE: ${{ inputs.auth_mode || 'credentials' }}
 
     defaults:
       run:
         shell: bash
 
     steps:
+      # Workflow inputs are not masked like secrets. Read the token from the event
+      # file (not via env:, which would print it) and mask it before anything else runs.
+      - name: 🔒 Mask API token input
+        run: |
+          TOKEN=$(jq -r '.inputs.api_token // empty' "$GITHUB_EVENT_PATH")
+          if [ -n "$TOKEN" ]; then echo "::add-mask::$TOKEN"; fi
+
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
@@ -103,10 +125,17 @@ jobs:
         env:
           # Secrets come from the GitHub Environment selected above.
           # They take priority over anything in env/.env.<env>.
-          APP_USERNAME: ${{ secrets.APP_USERNAME }}
-          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
+          # Only the values needed by the selected auth mode are passed in.
+          API_AUTH: ${{ env.AUTH_MODE }}
+          APP_USERNAME: ${{ env.AUTH_MODE == 'credentials' && secrets.APP_USERNAME || '' }}
+          APP_PASSWORD: ${{ env.AUTH_MODE == 'credentials' && secrets.APP_PASSWORD || '' }}
+          API_TOKEN: ${{ env.AUTH_MODE == 'token' && (inputs.api_token || secrets.API_TOKEN) || '' }}
         run: |
+          if [ "$AUTH_MODE" = "token" ] && [ -z "$API_TOKEN" ]; then
+            echo "::error::auth_mode=token but no api_token input and no API_TOKEN secret in '$TEST_ENV'."
+            exit 1
+          fi
+
           TAG="${TEST_SUITE#test:}"
 
           # Build args as an array so an empty flag never becomes a stray "" argument
@@ -115,7 +144,7 @@ jobs:
             PW_ARGS+=(--headed)
           fi
 
-          echo "▶ Env: $TEST_ENV | Suite: @$TAG | Browser: $BROWSER | Mode: $RUN_MODE"
+          echo "▶ Env: $TEST_ENV | Suite: @$TAG | Browser: $BROWSER | Mode: $RUN_MODE | Auth: $AUTH_MODE"
           npx "${PW_ARGS[@]}"
 
       - name: 📝 Job Summary
@@ -123,9 +152,9 @@ jobs:
         run: |
           {
             echo "### 🎭 Playwright Run"
-            echo "| Environment | Suite | Browser | Mode |"
-            echo "|---|---|---|---|"
-            echo "| **${TEST_ENV}** | ${TEST_SUITE} | ${BROWSER} | ${RUN_MODE} |"
+            echo "| Environment | Suite | Browser | Mode | Auth |"
+            echo "|---|---|---|---|---|"
+            echo "| **${TEST_ENV}** | ${TEST_SUITE} | ${BROWSER} | ${RUN_MODE} | ${AUTH_MODE} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 📊 Upload Playwright HTML Report

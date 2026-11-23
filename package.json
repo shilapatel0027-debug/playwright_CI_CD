@@ -12,7 +12,14 @@
     "test:e2e": "playwright test --grep @e2e",
     "test:datadriven": "playwright test --grep @datadriven",
     "test:master:headed": "playwright test --grep @sanity",
-    "test:sanity:debug": "playwright test --grep @sanity --debug"
+    "test:sanity:debug": "playwright test --grep @sanity --debug",
+    "test:dev-localrun": "TEST_ENV=dev npx playwright test --grep @sanity --headed --project=chromium",
+    "test:staging-localrun": "TEST_ENV=staging playwright test",
+    "test:local": "playwright test --project=chromium --headed",
+    "test:dev": "TEST_ENV=dev playwright test",
+    "test:qa": "TEST_ENV=qa playwright test",
+    "test:staging": "TEST_ENV=staging playwright test",
+    "test:prod": "TEST_ENV=prod playwright test"
   },
   "keywords": [],
   "author": "",

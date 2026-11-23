@@ -14,4 +14,4 @@ node_modules/
 /allure-report/
 
 # Local secrets
-env/.env.local
+env/.env*.local

@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { env } from '../config/env';
-import { AuthenticatedHomePage } from '../pages/AuthenticatedHomePage';
-import { LoginPage } from '../pages/LoginPage';
+import { env } from '../../config/env';
+import { AuthenticatedHomePage } from '../../pages/AuthenticatedHomePage';
+import { LoginPage } from '../../pages/LoginPage';
 
 test.describe('Login', () => {
+  // This test checks the login form itself, so start logged out.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('Signs in with valid credentials @sanity @e2e', async ({ page }) => {
     const loginPage = new LoginPage(page);
    // const authenticatedHomePage = new AuthenticatedHomePage(page);
@@ -13,10 +16,7 @@ test.describe('Login', () => {
     await loginPage.signIn(env.username, env.password);
     await expect(page).not.toHaveURL(/\/login(?:[/?#]|$)/);
 
-   /*  // 2. Inspect the authenticated page and refresh it.
-    await expect(authenticatedHomePage.eventManagementEntryPoint).toBeVisible();
-    await page.reload();
-    await expect(page).not.toHaveURL(/\/login(?:[/?#]|$)/);
-    await expect(authenticatedHomePage.eventManagementEntryPoint).toBeVisible(); */
+    await page.waitForTimeout(5000);  
+   
   });
 });

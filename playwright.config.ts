@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 // Loads env/.env.<TEST_ENV> (default: qa). CI secrets take priority.
 import { env } from './config/env';
+import { STORAGE_STATE } from './config/auth';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -34,22 +35,31 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
     },
-
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
     },
-
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: {
+        ...devices['Desktop Safari'],
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
     },
-
-  
   ],
 
  
